@@ -1,5 +1,65 @@
 # Day27 — Track 3: HITL PR Review Agent
 
+## Bản hoàn thiện — Gemini 3.5 Flash-Lite
+
+Đã triển khai đủ 5 bài tập. Dùng Gemini qua endpoint tương thích OpenAI;
+không cần tài khoản OpenRouter. Audit và checkpoint dùng SQLite theo phương án
+zero-setup của lab. Thư mục `common/` được giữ nguyên.
+
+### Chạy trên Windows PowerShell
+
+Môi trường `.venv` đã được cài sẵn tại máy này. Khởi động giao diện:
+
+```powershell
+.\.venv\Scripts\python.exe -m streamlit run app.py
+```
+
+Mở địa chỉ Streamlit hiển thị (mặc định `http://localhost:8501`). Nhập URL PR
+và bấm **Run review**. Confidence >= 0.73 tự đăng comment; từ 0.58 đến dưới
+0.73 chờ duyệt; dưới 0.58 yêu cầu trả lời câu hỏi. Sau escalation luôn có bước
+xác nhận review đã tổng hợp. **Edit & post** đăng toàn bộ nội dung đã sửa.
+**Reject** kết thúc phiên mà không đăng comment.
+
+Khi cài mới, dùng Python 3.11+ và `uv sync`. Sao chép `.env.example` thành `.env`
+và điền `GEMINI_API_KEY`, `GITHUB_TOKEN`, `GITHUB_USER`. Cấu hình model:
+
+```dotenv
+LLM_MODEL=gemini-3.5-flash-lite
+LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
+```
+
+`OPENROUTER_API_KEY` vẫn được chấp nhận làm tên biến key cũ. Không commit `.env`.
+
+### CLI, kiểm thử và khôi phục phiên
+
+```powershell
+.\.venv\Scripts\python.exe -m exercises.exercise_1_confidence --pr https://github.com/VinUni-AI20k/PR-Demo/pull/1
+.\.venv\Scripts\python.exe -m exercises.exercise_2_hitl --pr https://github.com/VinUni-AI20k/PR-Demo/pull/1
+.\.venv\Scripts\python.exe -m exercises.exercise_3_escalation --pr https://github.com/VinUni-AI20k/PR-Demo/pull/2
+.\.venv\Scripts\python.exe -m exercises.exercise_4_audit --pr https://github.com/VinUni-AI20k/PR-Demo/pull/1
+.\.venv\Scripts\python.exe -m audit.replay --list
+.\.venv\Scripts\python.exe -m audit.replay --thread <thread_id>
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+```
+
+Khôi phục CLI bằng cách thêm `--thread <thread_id>` vào lệnh bài 4. Trên UI,
+chọn **Open session** ở sidebar; URL có `?thread=...` giúp giữ phiên sau refresh.
+Nếu tiến trình dừng do lỗi, mở lại phiên rồi chọn **Continue session**.
+Phiên hoàn tất khi mở lại sẽ không chạy phân tích hoặc đăng comment lần nữa.
+
+Graph kiểm tra lại head SHA trước khi đăng; PR thay đổi thì cần review mới.
+Các log chờ duyệt được ghi ở node riêng để không bị lặp khi `interrupt()` chạy lại.
+Thời gian node không bao gồm thời gian con người chờ trả lời. Danh sách phiên
+xếp mức rủi ro theo high > med > low, không dùng thứ tự chữ cái.
+
+Giới hạn: chưa có bảo đảm exactly-once nếu tiến trình bị kill ngay sau khi GitHub
+nhận comment nhưng trước khi checkpoint được lưu. Trước khi tiếp tục một phiên
+gặp sự cố ở bước đăng, kiểm tra discussion trên PR để tránh comment trùng.
+Các thao tác đăng trong bộ test được giả lập; kiểm tra API thực tế chỉ đọc PR và
+gọi Gemini. Confidence do LLM sinh nên có thể thay đổi giữa các lần chạy.
+
+Phần dưới giữ lại đề bài gốc để đối chiếu; mô tả skeleton/TODO là trạng thái ban đầu.
+
 A 2-hour lab that builds a human-in-the-loop pull-request review agent in **LangGraph**, end-to-end.
 
 > 1. Agent reads a PR, analyzes code changes, proposes review comments.
